@@ -13,13 +13,15 @@ import threading
 from bs4 import BeautifulSoup
 
 class Pixiv(object):
-    def __init__(self,file_position,pixiv_id,password):
+    def __init__(self,file_position,pixiv_id):
+        self.name = ''
+        self.password = ''
         self.position = file_position
-        self.pixiv_id = pixiv_id
-        self.password = password
+        self.id= pixiv_id
+        self.url = 'http://www.pixiv.net/member_illust.php?id=' + str(pixiv_id) +'&type=all&p='
         self.get_cookies_url = "https://accounts.pixiv.net/login?lang=zh&source=pc&view_type=page&ref=wwwtop_accounts_index"
         self.get_postkey_url = "https://accounts.pixiv.net/login?return_to=http%3A%2F%2Fwww.pixiv.net%2Franking.php%3Fmode%3Ddaily&source=pc&view_type=page"
-        self.headers_base =  {
+        self.headers_base = {
             'Referer': 'https://accounts.pixiv.net/login?return_to=http%3A%2F%2Fwww.pixiv.net%2Franking.php%3Fmode%3Ddaily&source=pc&view_type=page',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'
         }
@@ -30,13 +32,14 @@ class Pixiv(object):
         }
 
         self.login_data = ({
-            'pixiv_id': self.pixiv_id,
+            'pixiv_id': self.name,
             'password': self.password,
             'captcha': '',
             'g_recaptcha_response': '',
             'post_key': '',
             'source': 'pc'
         })
+
 
     def login(self):
         s = requests.session()
@@ -72,9 +75,30 @@ class Pixiv(object):
                 f.write(picture)
                 f.close()
 
+    def create_dir(self):
+        pixiv_url = 'http://www.pixiv.net/member.php?id=' + str(self.id)
+        res = requests.get(pixiv_url,cookies=load_cookies('cookie.txt'),headers=self.headers_base)
+        if res == None:
+            print ("can't open the %s page") %(pixiv_url)
+            exit()
+        page = res.text
+        pattern = re.compile(r'<h1 class="user">(.*?)</h1>',re.S)
+        result = re.findall(pattern,page)
+        name = result[0]
+        try:
+            self.position = self.position + str(name) + '\\'
+        except:
+            self.position = self.position + str(self.id) + '\\'
+        isExists = os.path.exists(self.position)
+        if not isExists:
+            os.makedirs(self.position)
+            print ("文件夹创建成功")
+        else:
+            print ("文件夹已存在")
+
     def get_pic_number_list(self,url):
         number_list =[]
-        res = requests.get(url,cookies=load_cookies('cookie.txt'), headers=self.headers_base)
+        res = requests.get(url,cookies=load_cookies('cookie.txt'),headers=self.headers_base)
         # print(res.status_code)
         if res == None:
             print ("can't open the %s page" %(url))
@@ -99,8 +123,8 @@ class Pixiv(object):
                 pic_url.append(item['data-src'])
                 pic_name.append(item['alt'])
         else:                                                           #处理多图
-            pic_mul_url = pic_page_url.replace('medium&amp;', 'manga&')                                         #转跳后的链接
-            res_mul = requests.get(pic_mul_url,cookies=load_cookies('cookie.txt'),headers=self.headers_base)
+            pic_mul_url = pic_page_url.replace('medium&amp;', 'manga&')
+            res_mul = requests.get(pic_mul_url,cookies=load_cookies('cookie.txt'),headers=self.headers_base)    #转跳后的链接
             pic_mul_page = res_mul.text
 
             name_pattern = re.compile(r'<a href="/member_illust\.php\?mode=medium.*?">(.*?)</a>',re.S)
@@ -129,6 +153,7 @@ class Pixiv(object):
             download_name.append(name)
         return download_name
 
+
 def load_cookies(filename):
     with open(filename, 'rb') as f:
         return pickle.load(f)
@@ -137,19 +162,18 @@ def save_cookies(requests_cookiejar, filename):
     with open(filename, 'wb') as f:
         pickle.dump(requests_cookiejar, f)
 
-
-pixiv_id = ''
-password = ''
-file_position = 'C:\\Users\liao\\Pictures\\pixiv\\'
-base_fouce_url = 'http://www.pixiv.net/bookmark_new_illust.php'
-number = 100
-pixiv = Pixiv(file_position,pixiv_id,password)
-pixiv.login()
-
 Num = 0
-for n in range(1,5):
-    fouce_url = base_fouce_url + '?p=' + str(n)
-    pic_number_list = pixiv.get_pic_number_list(fouce_url)
+print ("please enter the pixiv number")
+pixiv_id = raw_input()
+print ("downloading......")
+file_position = 'C:\\Users\liao\\Pictures\\'
+pixiv = Pixiv(file_position,pixiv_id)
+pixiv.login()
+pixiv.create_dir()
+
+for n in range(1,8):
+    focus_url = pixiv.url + str(n)
+    pic_number_list = pixiv.get_pic_number_list(focus_url)
     for item in pic_number_list:
         filename_list = pixiv.download_pic(item)
         for items in filename_list:
